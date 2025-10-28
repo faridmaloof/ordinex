@@ -9,21 +9,22 @@ import { ArrowLeft } from 'lucide-react';
 
 interface Cliente {
     id: number;
-    codigo: string;
+    erp_id: string | null;
+    tipo_cliente: 'natural' | 'juridico';
     tipo_documento: string;
     numero_documento: string;
-    razon_social: string;
-    nombre_comercial: string;
-    telefono: string;
-    email: string;
-    direccion: string;
-    ciudad: string;
-    departamento: string;
-    pais: string;
+    nombre: string;
+    telefono: string | null;
+    celular: string | null;
+    email: string | null;
+    direccion: string | null;
+    ciudad: string | null;
+    departamento: string | null;
+    vendedor_id: number | null;
     limite_credito: number;
-    dias_credito: number;
+    sincronizado_erp: boolean;
     activo: boolean;
-    observaciones: string;
+    observaciones: string | null;
 }
 
 interface Props {
@@ -32,19 +33,19 @@ interface Props {
 
 export default function Edit({ cliente }: Props) {
     const { data, setData, put, processing, errors } = useForm({
-        codigo: cliente.codigo || '',
+        erp_id: cliente.erp_id || '',
+        tipo_cliente: cliente.tipo_cliente,
         tipo_documento: cliente.tipo_documento,
         numero_documento: cliente.numero_documento,
-        razon_social: cliente.razon_social,
-        nombre_comercial: cliente.nombre_comercial || '',
+        nombre: cliente.nombre,
         telefono: cliente.telefono || '',
+        celular: cliente.celular || '',
         email: cliente.email || '',
         direccion: cliente.direccion || '',
         ciudad: cliente.ciudad || '',
         departamento: cliente.departamento || '',
-        pais: cliente.pais,
+        vendedor_id: String(cliente.vendedor_id || ''),
         limite_credito: String(cliente.limite_credito),
-        dias_credito: String(cliente.dias_credito),
         activo: cliente.activo,
         observaciones: cliente.observaciones || '',
     });
@@ -56,17 +57,21 @@ export default function Edit({ cliente }: Props) {
         });
     };
 
+    const tiposCliente = [
+        { value: 'natural', label: 'Persona Natural' },
+        { value: 'juridico', label: 'Persona Jurídica' },
+    ];
+
     const tiposDocumento = [
-        { value: 'CI', label: 'Cédula de Identidad' },
+        { value: 'CC', label: 'Cédula de Ciudadanía' },
         { value: 'NIT', label: 'NIT' },
-        { value: 'RUC', label: 'RUC' },
-        { value: 'PASAPORTE', label: 'Pasaporte' },
-        { value: 'OTRO', label: 'Otro' },
+        { value: 'CE', label: 'Cédula de Extranjería' },
+        { value: 'Pasaporte', label: 'Pasaporte' },
     ];
 
     return (
         <AppLayout>
-            <Head title={`Editar Cliente: ${cliente.razon_social}`} />
+            <Head title={`Editar Cliente: ${cliente.nombre}`} />
 
             <div className="space-y-6">
                 {/* Header */}
@@ -76,7 +81,7 @@ export default function Edit({ cliente }: Props) {
                             Editar Cliente
                         </h2>
                         <p className="text-sm text-gray-600 mt-1">
-                            {cliente.razon_social}
+                            {cliente.nombre}
                         </p>
                     </div>
                     <Link href={route('catalogos.clientes.index')}>
@@ -99,58 +104,63 @@ export default function Edit({ cliente }: Props) {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid gap-4 md:grid-cols-2">
-                                <FormField
-                                    label="Código"
-                                    name="codigo"
-                                    value={data.codigo}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('codigo', e.target.value.toUpperCase())}
-                                    error={errors.codigo}
-                                    placeholder="Ej: CLI-001"
-                                    disabled
-                                    helpText="El código no se puede modificar"
+                                <SelectField
+                                    label="Tipo de Cliente"
+                                    name="tipo_cliente"
+                                    value={data.tipo_cliente}
+                                    onChange={(value: string) => setData('tipo_cliente', value)}
+                                    options={tiposCliente}
+                                    error={errors.tipo_cliente}
+                                    required
+                                    helpText="Seleccione si es persona natural o jurídica"
                                 />
 
-                                <div className="grid gap-4 grid-cols-2">
-                                    <SelectField
-                                        label="Tipo Documento"
-                                        name="tipo_documento"
-                                        value={data.tipo_documento}
-                                        onChange={(value: string) => setData('tipo_documento', value)}
-                                        options={tiposDocumento}
-                                        error={errors.tipo_documento}
-                                        required
-                                    />
-                                    <FormField
-                                        label="Número Documento"
-                                        name="numero_documento"
-                                        value={data.numero_documento}
-                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('numero_documento', e.target.value)}
-                                        error={errors.numero_documento}
-                                        required
-                                    />
-                                </div>
+                                <FormField
+                                    label="ERP ID"
+                                    name="erp_id"
+                                    value={data.erp_id}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('erp_id', e.target.value)}
+                                    error={errors.erp_id}
+                                    placeholder="ID en sistema ERP (opcional)"
+                                    helpText={cliente.sincronizado_erp ? "✓ Sincronizado" : "No sincronizado"}
+                                    disabled={cliente.sincronizado_erp}
+                                />
                             </div>
 
                             <div className="grid gap-4 md:grid-cols-2">
-                                <FormField
-                                    label="Razón Social"
-                                    name="razon_social"
-                                    value={data.razon_social}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('razon_social', e.target.value)}
-                                    error={errors.razon_social}
+                                <SelectField
+                                    label="Tipo Documento"
+                                    name="tipo_documento"
+                                    value={data.tipo_documento}
+                                    onChange={(value: string) => setData('tipo_documento', value)}
+                                    options={tiposDocumento}
+                                    error={errors.tipo_documento}
                                     required
-                                    helpText="Nombre legal del cliente"
                                 />
-
                                 <FormField
-                                    label="Nombre Comercial"
-                                    name="nombre_comercial"
-                                    value={data.nombre_comercial}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('nombre_comercial', e.target.value)}
-                                    error={errors.nombre_comercial}
-                                    helpText="Nombre con el que se le conoce (opcional)"
+                                    label="Número Documento"
+                                    name="numero_documento"
+                                    value={data.numero_documento}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('numero_documento', e.target.value)}
+                                    error={errors.numero_documento}
+                                    required
+                                    maxLength={20}
                                 />
                             </div>
+
+                            <FormField
+                                label={data.tipo_cliente === 'juridico' ? 'Razón Social' : 'Nombre Completo'}
+                                name="nombre"
+                                value={data.nombre}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('nombre', e.target.value)}
+                                error={errors.nombre}
+                                required
+                                helpText={
+                                    data.tipo_cliente === 'juridico' 
+                                        ? 'Nombre legal de la empresa' 
+                                        : 'Nombre completo de la persona'
+                                }
+                            />
                         </CardContent>
                     </Card>
 
@@ -171,19 +181,32 @@ export default function Edit({ cliente }: Props) {
                                     value={data.telefono}
                                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('telefono', e.target.value)}
                                     error={errors.telefono}
-                                    placeholder="Ej: +591 2 1234567"
+                                    placeholder="Ej: 3001234567"
+                                    maxLength={20}
                                 />
 
                                 <FormField
-                                    label="Email"
-                                    name="email"
-                                    type="email"
-                                    value={data.email}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('email', e.target.value)}
-                                    error={errors.email}
-                                    placeholder="cliente@ejemplo.com"
+                                    label="Celular"
+                                    name="celular"
+                                    type="tel"
+                                    value={data.celular}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('celular', e.target.value)}
+                                    error={errors.celular}
+                                    placeholder="Ej: 3101234567"
+                                    maxLength={20}
                                 />
+
                             </div>
+
+                            <FormField
+                                label="Email"
+                                name="email"
+                                type="email"
+                                value={data.email}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('email', e.target.value)}
+                                error={errors.email}
+                                placeholder="cliente@ejemplo.com"
+                            />
 
                             <FormField
                                 label="Dirección"
@@ -194,7 +217,7 @@ export default function Edit({ cliente }: Props) {
                                 placeholder="Dirección completa del cliente"
                             />
 
-                            <div className="grid gap-4 md:grid-cols-3">
+                            <div className="grid gap-4 md:grid-cols-2">
                                 <FormField
                                     label="Ciudad"
                                     name="ciudad"
@@ -210,28 +233,30 @@ export default function Edit({ cliente }: Props) {
                                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('departamento', e.target.value)}
                                     error={errors.departamento}
                                 />
-
-                                <FormField
-                                    label="País"
-                                    name="pais"
-                                    value={data.pais}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('pais', e.target.value)}
-                                    error={errors.pais}
-                                />
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Crédito */}
+                    {/* Crédito y Vendedor */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Configuración de Crédito</CardTitle>
+                            <CardTitle>Configuración Comercial</CardTitle>
                             <CardDescription>
-                                Límites y términos de crédito para el cliente
+                                Vendedor asignado y límite de crédito
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid gap-4 md:grid-cols-2">
+                                <FormField
+                                    label="Vendedor ID"
+                                    name="vendedor_id"
+                                    type="number"
+                                    value={data.vendedor_id}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('vendedor_id', e.target.value)}
+                                    error={errors.vendedor_id}
+                                    helpText="ID del vendedor asignado (opcional)"
+                                />
+
                                 <FormField
                                     label="Límite de Crédito"
                                     name="limite_credito"
@@ -242,17 +267,6 @@ export default function Edit({ cliente }: Props) {
                                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('limite_credito', e.target.value)}
                                     error={errors.limite_credito}
                                     helpText="Monto máximo de crédito permitido"
-                                />
-
-                                <FormField
-                                    label="Días de Crédito"
-                                    name="dias_credito"
-                                    type="number"
-                                    min="0"
-                                    value={data.dias_credito}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('dias_credito', e.target.value)}
-                                    error={errors.dias_credito}
-                                    helpText="Plazo en días para pago a crédito"
                                 />
                             </div>
                         </CardContent>

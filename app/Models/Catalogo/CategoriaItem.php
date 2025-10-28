@@ -15,12 +15,10 @@ class CategoriaItem extends Model
         'nombre',
         'descripcion',
         'categoria_padre_id',
-        'nivel',
         'activo',
     ];
 
     protected $casts = [
-        'nivel' => 'integer',
         'activo' => 'boolean',
     ];
 

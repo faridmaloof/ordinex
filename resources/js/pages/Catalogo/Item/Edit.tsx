@@ -15,18 +15,22 @@ interface EditItemProps extends PageProps {
 
 export default function EditItem({ auth, item, categorias }: EditItemProps) {
     const { data, setData, patch, errors, processing } = useForm({
+        erp_id: item.erp_id || '',
         codigo: item.codigo || '',
         nombre: item.nombre || '',
         descripcion: item.descripcion || '',
         categoria_id: item.categoria_id || '',
+        categoria_erp: item.categoria_erp || '',
         tipo: item.tipo || 'producto',
         unidad_medida: item.unidad_medida || 'unidad',
+        precio_base: item.precio_base || 0,
         precio_venta: item.precio_venta || 0,
-        precio_costo: item.precio_costo || 0,
-        aplica_iva: item.aplica_iva || false,
-        porcentaje_iva: item.porcentaje_iva || 19,
+        iva: item.iva || 19.00,
+        imagen: item.imagen || '',
         maneja_inventario: item.maneja_inventario || false,
         stock_minimo: item.stock_minimo || 0,
+        tiempo_estimado_servicio: item.tiempo_estimado_servicio || '',
+        permite_edicion: item.permite_edicion ?? true,
         activo: item.activo || false,
     });
 
@@ -50,7 +54,8 @@ export default function EditItem({ auth, item, categorias }: EditItemProps) {
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={submit} className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Información Básica */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <FormField
                                         id="codigo"
                                         label="Código"
@@ -60,14 +65,31 @@ export default function EditItem({ auth, item, categorias }: EditItemProps) {
                                         required
                                     />
                                     <FormField
-                                        id="nombre"
-                                        label="Nombre"
-                                        value={data.nombre}
-                                        onChange={(e) => setData('nombre', e.target.value)}
-                                        error={errors.nombre}
-                                        required
+                                        id="erp_id"
+                                        label="Código ERP"
+                                        value={data.erp_id}
+                                        onChange={(e) => setData('erp_id', e.target.value)}
+                                        error={errors.erp_id}
+                                        helpText="Código del sistema ERP (opcional)"
+                                    />
+                                    <FormField
+                                        id="categoria_erp"
+                                        label="Categoría ERP"
+                                        value={data.categoria_erp}
+                                        onChange={(e) => setData('categoria_erp', e.target.value)}
+                                        error={errors.categoria_erp}
+                                        helpText="Categoría del sistema ERP (opcional)"
                                     />
                                 </div>
+
+                                <FormField
+                                    id="nombre"
+                                    label="Nombre"
+                                    value={data.nombre}
+                                    onChange={(e) => setData('nombre', e.target.value)}
+                                    error={errors.nombre}
+                                    required
+                                />
 
                                 <TextareaField
                                     id="descripcion"
@@ -77,7 +99,7 @@ export default function EditItem({ auth, item, categorias }: EditItemProps) {
                                     error={errors.descripcion}
                                 />
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <SelectField
                                         id="categoria_id"
                                         label="Categoría"
@@ -100,55 +122,80 @@ export default function EditItem({ auth, item, categorias }: EditItemProps) {
                                         ]}
                                         required
                                     />
+                                    <SelectField
+                                        id="unidad_medida"
+                                        label="Unidad de Medida"
+                                        value={data.unidad_medida}
+                                        onChange={(e) => setData('unidad_medida', e.target.value)}
+                                        error={errors.unidad_medida}
+                                        options={[
+                                            { value: 'unidad', label: 'Unidad' },
+                                            { value: 'hora', label: 'Hora' },
+                                            { value: 'metro', label: 'Metro' },
+                                            { value: 'litro', label: 'Litro' },
+                                            { value: 'kilogramo', label: 'Kilogramo' },
+                                        ]}
+                                        required
+                                    />
                                 </div>
 
+                                {/* Tiempo estimado si es servicio */}
+                                {data.tipo === 'servicio' && (
+                                    <FormField
+                                        id="tiempo_estimado_servicio"
+                                        label="Tiempo Estimado"
+                                        value={data.tiempo_estimado_servicio}
+                                        onChange={(e) => setData('tiempo_estimado_servicio', e.target.value)}
+                                        error={errors.tiempo_estimado_servicio}
+                                        helpText="Ej: 2 horas, 1 día, etc."
+                                    />
+                                )}
+
+                                {/* Precios e Impuestos */}
                                 <div className="border-t pt-6">
-                                    <h3 class="text-lg font-medium text-gray-900">Precios e Impuestos</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-4">
+                                    <h3 className="text-lg font-medium text-gray-900 mb-4">Precios e Impuestos</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <FormField
+                                            id="precio_base"
+                                            label="Precio Base"
+                                            type="number"
+                                            step="0.01"
+                                            value={data.precio_base}
+                                            onChange={(e) => setData('precio_base', parseFloat(e.target.value))}
+                                            error={errors.precio_base}
+                                            required
+                                            helpText="Precio sin IVA"
+                                        />
                                         <FormField
                                             id="precio_venta"
                                             label="Precio de Venta"
                                             type="number"
+                                            step="0.01"
                                             value={data.precio_venta}
                                             onChange={(e) => setData('precio_venta', parseFloat(e.target.value))}
                                             error={errors.precio_venta}
                                             required
+                                            helpText="Precio final al público"
                                         />
                                         <FormField
-                                            id="precio_costo"
-                                            label="Precio de Costo"
+                                            id="iva"
+                                            label="IVA %"
                                             type="number"
-                                            value={data.precio_costo}
-                                            onChange={(e) => setData('precio_costo', parseFloat(e.target.value))}
-                                            error={errors.precio_costo}
+                                            step="0.01"
+                                            value={data.iva}
+                                            onChange={(e) => setData('iva', parseFloat(e.target.value))}
+                                            error={errors.iva}
+                                            required
                                         />
-                                        <div className="flex items-center space-x-2 pt-6">
-                                            <input
-                                                type="checkbox"
-                                                id="aplica_iva"
-                                                checked={data.aplica_iva}
-                                                onChange={(e) => setData('aplica_iva', e.target.checked)}
-                                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                            />
-                                            <label htmlFor="aplica_iva" className="text-sm font-medium text-gray-700">Aplica IVA</label>
-                                        </div>
-                                        {data.aplica_iva && (
-                                            <FormField
-                                                id="porcentaje_iva"
-                                                label="% IVA"
-                                                type="number"
-                                                value={data.porcentaje_iva}
-                                                onChange={(e) => setData('porcentaje_iva', parseFloat(e.target.value))}
-                                                error={errors.porcentaje_iva}
-                                            />
-                                        )}
                                     </div>
                                 </div>
 
                                 <div className="border-t pt-6">
-                                    <h3 class="text-lg font-medium text-gray-900">Inventario</h3>
-                                    <p className="text-sm text-gray-500">El stock inicial no se puede editar. Use la opción de ajustar stock.</p>
-                                    <div className="flex items-center space-x-2 mt-4">
+                                    <h3 className="text-lg font-medium text-gray-900 mb-4">Inventario</h3>
+                                    <p className="text-sm text-gray-500 mb-4">
+                                        El stock inicial no se puede editar. Use la opción de ajustar stock desde el listado de items.
+                                    </p>
+                                    <div className="flex items-center space-x-2">
                                         <input
                                             type="checkbox"
                                             id="maneja_inventario"
@@ -156,10 +203,12 @@ export default function EditItem({ auth, item, categorias }: EditItemProps) {
                                             onChange={(e) => setData('maneja_inventario', e.target.checked)}
                                             className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                                         />
-                                        <label htmlFor="maneja_inventario" className="text-sm font-medium text-gray-700">Maneja Inventario</label>
+                                        <label htmlFor="maneja_inventario" className="text-sm font-medium text-gray-700">
+                                            Maneja Inventario
+                                        </label>
                                     </div>
                                     {data.maneja_inventario && (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                                        <div className="mt-4">
                                             <FormField
                                                 id="stock_minimo"
                                                 label="Stock Mínimo"
@@ -170,6 +219,36 @@ export default function EditItem({ auth, item, categorias }: EditItemProps) {
                                             />
                                         </div>
                                     )}
+                                </div>
+
+                                {/* Imagen y configuración */}
+                                <div className="border-t pt-6">
+                                    <h3 className="text-lg font-medium text-gray-900 mb-4">Imagen y Configuración</h3>
+                                    <div className="space-y-4">
+                                        <FormField
+                                            id="imagen"
+                                            label="URL de Imagen"
+                                            value={data.imagen}
+                                            onChange={(e) => setData('imagen', e.target.value)}
+                                            error={errors.imagen}
+                                            helpText="URL de la imagen del item (opcional)"
+                                        />
+                                        <div className="flex items-center space-x-2">
+                                            <input
+                                                type="checkbox"
+                                                id="permite_edicion"
+                                                checked={data.permite_edicion}
+                                                onChange={(e) => setData('permite_edicion', e.target.checked)}
+                                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            <label htmlFor="permite_edicion" className="text-sm font-medium text-gray-700">
+                                                Permite Edición
+                                            </label>
+                                            <span className="text-sm text-gray-500">
+                                                (Items sincronizados con ERP no deberían ser editables)
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="flex items-center justify-end space-x-4 pt-6 border-t">

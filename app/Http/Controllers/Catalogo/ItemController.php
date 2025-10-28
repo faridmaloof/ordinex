@@ -67,21 +67,25 @@ class ItemController extends Controller
 
         DB::transaction(function () use ($validated) {
             $item = Item::create([
+                'erp_id' => $validated['erp_id'] ?? null,
                 'codigo' => $validated['codigo'],
                 'nombre' => $validated['nombre'],
                 'descripcion' => $validated['descripcion'] ?? null,
-                'categoria_id' => $validated['categoria_id'],
                 'tipo' => $validated['tipo'],
-                'unidad_medida' => $validated['unidad_medida'],
+                'categoria_id' => $validated['categoria_id'],
+                'categoria_erp' => $validated['categoria_erp'] ?? null,
+                'precio_base' => $validated['precio_base'],
                 'precio_venta' => $validated['precio_venta'],
-                'precio_costo' => $validated['precio_costo'] ?? 0,
-                'aplica_iva' => $validated['aplica_iva'] ?? false,
-                'porcentaje_iva' => $validated['porcentaje_iva'] ?? 0,
+                'costo' => $validated['costo'] ?? 0,
+                'unidad_medida' => $validated['unidad_medida'] ?? 'unidad',
+                'iva' => $validated['iva'] ?? 19.00,
+                'tiempo_estimado_servicio' => $validated['tiempo_estimado_servicio'] ?? null,
+                'imagen' => $validated['imagen'] ?? null,
+                'activo' => $validated['activo'] ?? true,
+                'permite_edicion' => $validated['permite_edicion'] ?? true,
                 'maneja_inventario' => $validated['maneja_inventario'] ?? false,
-                'stock_inicial' => $validated['stock_inicial'] ?? 0,
                 'stock_actual' => $validated['stock_inicial'] ?? 0,
                 'stock_minimo' => $validated['stock_minimo'] ?? 0,
-                'activo' => $validated['activo'] ?? true,
             ]);
 
             // Registrar auditoría
@@ -95,7 +99,7 @@ class ItemController extends Controller
             );
         });
 
-        return redirect()->route('items.index')->with('success', 'Item creado exitosamente');
+        return redirect()->route('catalogos.items.index')->with('success', 'Item creado exitosamente');
     }
 
     public function show(Item $item)
@@ -124,19 +128,24 @@ class ItemController extends Controller
             $datosAnteriores = $item->toArray();
 
             $item->update([
+                'erp_id' => $validated['erp_id'] ?? null,
                 'codigo' => $validated['codigo'],
                 'nombre' => $validated['nombre'],
                 'descripcion' => $validated['descripcion'] ?? null,
-                'categoria_id' => $validated['categoria_id'],
                 'tipo' => $validated['tipo'],
-                'unidad_medida' => $validated['unidad_medida'],
+                'categoria_id' => $validated['categoria_id'],
+                'categoria_erp' => $validated['categoria_erp'] ?? null,
+                'precio_base' => $validated['precio_base'],
                 'precio_venta' => $validated['precio_venta'],
-                'precio_costo' => $validated['precio_costo'] ?? 0,
-                'aplica_iva' => $validated['aplica_iva'] ?? false,
-                'porcentaje_iva' => $validated['porcentaje_iva'] ?? 0,
+                'costo' => $validated['costo'] ?? 0,
+                'unidad_medida' => $validated['unidad_medida'] ?? 'unidad',
+                'iva' => $validated['iva'] ?? 19.00,
+                'tiempo_estimado_servicio' => $validated['tiempo_estimado_servicio'] ?? null,
+                'imagen' => $validated['imagen'] ?? null,
+                'activo' => $validated['activo'] ?? true,
+                'permite_edicion' => $validated['permite_edicion'] ?? true,
                 'maneja_inventario' => $validated['maneja_inventario'] ?? false,
                 'stock_minimo' => $validated['stock_minimo'] ?? 0,
-                'activo' => $validated['activo'] ?? true,
             ]);
 
             // Registrar auditoría

@@ -3,6 +3,7 @@
 namespace App\Models\Catalogo;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Cliente extends Model
@@ -10,36 +11,43 @@ class Cliente extends Model
     protected $table = 'cat__clientes';
 
     protected $fillable = [
-        'codigo',
+        'erp_id',
+        'tipo_cliente',
         'tipo_documento',
         'numero_documento',
-        'razon_social',
-        'nombre_comercial',
+        'nombre',
         'telefono',
+        'celular',
         'email',
         'direccion',
         'ciudad',
         'departamento',
-        'pais',
-        'limite_credito',
-        'dias_credito',
-        'saldo_pendiente',
+        'vendedor_id',
         'saldo_favor',
-        'activo',
+        'limite_credito',
         'observaciones',
+        'sincronizado_erp',
+        'activo',
     ];
 
     protected $casts = [
         'limite_credito' => 'decimal:2',
-        'dias_credito' => 'integer',
-        'saldo_pendiente' => 'decimal:2',
         'saldo_favor' => 'decimal:2',
+        'sincronizado_erp' => 'boolean',
         'activo' => 'boolean',
     ];
 
     // ============================================
     // RELACIONES
     // ============================================
+
+    /**
+     * Vendedor asignado
+     */
+    public function vendedor(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'vendedor_id');
+    }
 
     /**
      * Solicitudes del cliente
@@ -82,15 +90,8 @@ class Cliente extends Model
      */
     public function scopeConCreditoDisponible($query)
     {
-        return $query->whereRaw('(limite_credito - saldo_pendiente) > 0');
-    }
-
-    /**
-     * Scope: Clientes con saldo pendiente
-     */
-    public function scopeConSaldoPendiente($query)
-    {
-        return $query->where('saldo_pendiente', '>', 0);
+        return $query->where('limite_credito', '>', 0)
+                     ->whereRaw('limite_credito > 0');
     }
 
     /**
@@ -99,48 +100,15 @@ class Cliente extends Model
     public function scopeBuscar($query, string $termino)
     {
         return $query->where(function ($q) use ($termino) {
-            $q->where('codigo', 'like', "%{$termino}%")
-              ->orWhere('numero_documento', 'like', "%{$termino}%")
-              ->orWhere('razon_social', 'like', "%{$termino}%")
-              ->orWhere('nombre_comercial', 'like', "%{$termino}%");
+            $q->where('numero_documento', 'like', "%{$termino}%")
+              ->orWhere('nombre', 'like', "%{$termino}%")
+              ->orWhere('email', 'like', "%{$termino}%");
         });
     }
 
     // ============================================
     // MÉTODOS DE NEGOCIO
     // ============================================
-
-    /**
-     * Obtener crédito disponible
-     */
-    public function getCreditoDisponible(): float
-    {
-        return max(0, $this->limite_credito - $this->saldo_pendiente);
-    }
-
-    /**
-     * Verificar si tiene crédito disponible
-     */
-    public function tieneCreditoDisponible(float $monto = 0): bool
-    {
-        return $this->getCreditoDisponible() >= $monto;
-    }
-
-    /**
-     * Agregar saldo pendiente
-     */
-    public function agregarSaldoPendiente(float $monto): void
-    {
-        $this->increment('saldo_pendiente', $monto);
-    }
-
-    /**
-     * Reducir saldo pendiente (cuando paga)
-     */
-    public function reducirSaldoPendiente(float $monto): void
-    {
-        $this->decrement('saldo_pendiente', $monto);
-    }
 
     /**
      * Agregar saldo a favor
@@ -160,10 +128,26 @@ class Cliente extends Model
     }
 
     /**
-     * Obtener nombre completo para mostrar
+     * Obtener nombre para mostrar
      */
-    public function getNombreCompletoAttribute(): string
+    public function getNombreDisplayAttribute(): string
     {
-        return $this->nombre_comercial ?: $this->razon_social;
+        return $this->nombre;
+    }
+
+    /**
+     * Verificar si es cliente jurídico
+     */
+    public function esJuridico(): bool
+    {
+        return $this->tipo_cliente === 'juridico';
+    }
+
+    /**
+     * Verificar si está sincronizado con ERP
+     */
+    public function estaSincronizado(): bool
+    {
+        return $this->sincronizado_erp && !empty($this->erp_id);
     }
 }

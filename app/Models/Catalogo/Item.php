@@ -11,28 +11,39 @@ class Item extends Model
     protected $table = 'cat__items';
 
     protected $fillable = [
+        'erp_id',
         'codigo',
         'nombre',
         'descripcion',
-        'categoria_id',
         'tipo',
-        'unidad_medida',
+        'categoria_id',
+        'categoria_erp',
         'precio_base',
-        'tiempo_estimado_minutos',
-        'requiere_inventario',
+        'precio_venta',
+        'costo',
+        'unidad_medida',
+        'iva',
+        'tiempo_estimado_servicio',
+        'imagen',
+        'activo',
+        'permite_edicion',
+        // Campos de inventario (extensión)
+        'maneja_inventario',
         'stock_actual',
         'stock_minimo',
-        'activo',
-        'imagen',
     ];
 
     protected $casts = [
         'precio_base' => 'decimal:2',
-        'tiempo_estimado_minutos' => 'integer',
-        'requiere_inventario' => 'boolean',
-        'stock_actual' => 'decimal:2',
-        'stock_minimo' => 'decimal:2',
+        'precio_venta' => 'decimal:2',
+        'costo' => 'decimal:2',
+        'iva' => 'decimal:2',
+        'tiempo_estimado_servicio' => 'integer',
+        'maneja_inventario' => 'boolean',
+        'stock_actual' => 'integer',
+        'stock_minimo' => 'integer',
         'activo' => 'boolean',
+        'permite_edicion' => 'boolean',
     ];
 
     // ============================================
@@ -96,7 +107,7 @@ class Item extends Model
      */
     public function scopeConStockBajo($query)
     {
-        return $query->where('requiere_inventario', true)
+        return $query->where('maneja_inventario', true)
                      ->whereRaw('stock_actual <= stock_minimo');
     }
 
@@ -135,9 +146,9 @@ class Item extends Model
     /**
      * Verificar si tiene stock disponible
      */
-    public function tieneStock(float $cantidad = 1): bool
+    public function tieneStock(int $cantidad = 1): bool
     {
-        if (!$this->requiere_inventario) {
+        if (!$this->maneja_inventario) {
             return true; // Los servicios no requieren stock
         }
 
@@ -149,15 +160,15 @@ class Item extends Model
      */
     public function stockBajo(): bool
     {
-        return $this->requiere_inventario && $this->stock_actual <= $this->stock_minimo;
+        return $this->maneja_inventario && $this->stock_actual <= $this->stock_minimo;
     }
 
     /**
      * Descontar stock
      */
-    public function descontarStock(float $cantidad): void
+    public function descontarStock(int $cantidad): void
     {
-        if ($this->requiere_inventario) {
+        if ($this->maneja_inventario) {
             $this->decrement('stock_actual', $cantidad);
         }
     }
@@ -165,11 +176,19 @@ class Item extends Model
     /**
      * Agregar stock
      */
-    public function agregarStock(float $cantidad): void
+    public function agregarStock(int $cantidad): void
     {
-        if ($this->requiere_inventario) {
+        if ($this->maneja_inventario) {
             $this->increment('stock_actual', $cantidad);
         }
+    }
+
+    /**
+     * Calcular precio con IVA
+     */
+    public function getPrecioConIva(): float
+    {
+        return $this->precio_venta * (1 + ($this->iva / 100));
     }
 
     /**
@@ -177,7 +196,23 @@ class Item extends Model
      */
     public function calcularPrecioConDescuento(float $porcentajeDescuento): float
     {
-        $descuento = $this->precio_base * ($porcentajeDescuento / 100);
-        return $this->precio_base - $descuento;
+        $descuento = $this->precio_venta * ($porcentajeDescuento / 100);
+        return $this->precio_venta - $descuento;
+    }
+
+    /**
+     * Verificar si permite edición de precio
+     */
+    public function permiteEdicionPrecio(): bool
+    {
+        return $this->permite_edicion;
+    }
+
+    /**
+     * Verificar si está sincronizado con ERP
+     */
+    public function estaSincronizado(): bool
+    {
+        return !empty($this->erp_id);
     }
 }

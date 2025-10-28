@@ -8,20 +8,25 @@ import { MoneyDisplay } from '@/components/money-display';
 
 interface Cliente {
     id: number;
-    codigo: string;
+    erp_id: string | null;
+    tipo_cliente: 'natural' | 'juridico';
     tipo_documento: string;
     numero_documento: string;
-    razon_social: string;
-    nombre_comercial: string;
-    telefono: string;
-    email: string;
-    direccion: string;
-    ciudad: string;
-    departamento: string;
+    nombre: string;
+    telefono: string | null;
+    celular: string | null;
+    email: string | null;
+    direccion: string | null;
+    ciudad: string | null;
+    departamento: string | null;
+    vendedor_id: number | null;
+    vendedor?: {
+        id: number;
+        nombre: string;
+    };
     limite_credito: number;
-    dias_credito: number;
-    saldo_pendiente: number;
     saldo_favor: number;
+    sincronizado_erp: boolean;
     activo: boolean;
 }
 
@@ -46,7 +51,7 @@ export default function Index({ clientes, filters = {} }: Props) {
     const handleDelete = (item: Cliente) => {
         confirm({
             title: '¿Eliminar cliente?',
-            description: `¿Está seguro de eliminar "${item.razon_social}"? Esta acción no se puede deshacer.`,
+            description: `¿Está seguro de eliminar "${item.nombre}"? Esta acción no se puede deshacer.`,
             variant: 'destructive',
             confirmText: 'Eliminar',
             onConfirm: () => {
@@ -59,18 +64,32 @@ export default function Index({ clientes, filters = {} }: Props) {
 
     const columns: Column<Cliente>[] = [
         {
-            header: 'Código',
-            accessor: 'codigo',
-            className: 'w-24 font-mono',
+            header: 'Tipo',
+            accessor: 'tipo_cliente',
+            className: 'w-24',
+            render: (value) => (
+                <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
+                    value === 'juridico' 
+                        ? 'bg-blue-100 text-blue-700' 
+                        : 'bg-green-100 text-green-700'
+                }`}>
+                    {value === 'juridico' ? 'Jurídico' : 'Natural'}
+                </span>
+            ),
         },
         {
             header: 'Cliente',
-            accessor: 'razon_social',
+            accessor: 'nombre',
             render: (value, row) => (
                 <div>
                     <div className="font-medium">{value}</div>
-                    {row.nombre_comercial && (
-                        <div className="text-xs text-gray-500">{row.nombre_comercial}</div>
+                    {row.erp_id && (
+                        <div className="text-xs text-gray-500">
+                            ERP: {row.erp_id}
+                            {row.sincronizado_erp && (
+                                <span className="ml-1 text-green-600">●</span>
+                            )}
+                        </div>
                     )}
                 </div>
             ),
@@ -80,7 +99,7 @@ export default function Index({ clientes, filters = {} }: Props) {
             accessor: 'numero_documento',
             render: (value, row) => (
                 <div className="text-sm">
-                    <div>{row.tipo_documento}</div>
+                    <div className="font-mono">{row.tipo_documento}</div>
                     <div className="text-gray-600">{value}</div>
                 </div>
             ),
@@ -90,7 +109,8 @@ export default function Index({ clientes, filters = {} }: Props) {
             render: (_, row) => (
                 <div className="text-sm">
                     {row.telefono && <div>{row.telefono}</div>}
-                    {row.email && <div className="text-gray-600">{row.email}</div>}
+                    {row.celular && <div className="text-gray-500">{row.celular}</div>}
+                    {row.email && <div className="text-gray-600 truncate max-w-[200px]">{row.email}</div>}
                 </div>
             ),
         },
@@ -104,14 +124,24 @@ export default function Index({ clientes, filters = {} }: Props) {
             ),
         },
         {
-            header: 'Saldo Pendiente',
-            accessor: 'saldo_pendiente',
+            header: 'Vendedor',
+            render: (_, row) => (
+                row.vendedor ? (
+                    <div className="text-sm text-gray-700">{row.vendedor.nombre}</div>
+                ) : (
+                    <span className="text-xs text-gray-400">Sin asignar</span>
+                )
+            ),
+        },
+        {
+            header: 'Saldo Favor',
+            accessor: 'saldo_favor',
             className: 'text-right',
             render: (value) => (
                 <MoneyDisplay 
                     amount={value} 
-                    colorize={value > 0}
-                    className={value > 0 ? 'text-red-600 font-medium' : ''}
+                    colorized={value > 0}
+                    className={value > 0 ? 'text-green-600 font-medium' : ''}
                 />
             ),
         },
@@ -122,7 +152,6 @@ export default function Index({ clientes, filters = {} }: Props) {
             render: (value) => (
                 <EstadoBadge 
                     estado={value ? 'activo' : 'inactivo'} 
-                    type="general" 
                 />
             ),
         },
@@ -152,7 +181,6 @@ export default function Index({ clientes, filters = {} }: Props) {
             size: 'sm',
             onClick: handleDelete,
             permission: 'clientes.delete',
-            show: (row) => row.saldo_pendiente === 0,
             className: 'text-red-600 hover:text-red-700 hover:bg-red-50',
         },
     ];
@@ -169,24 +197,33 @@ export default function Index({ clientes, filters = {} }: Props) {
             placeholder: 'Todos',
         },
         {
-            name: 'tipo_documento',
-            label: 'Tipo Documento',
+            name: 'tipo_cliente',
+            label: 'Tipo Cliente',
             type: 'select',
             options: [
-                { value: 'CI', label: 'Cédula de Identidad' },
-                { value: 'NIT', label: 'NIT' },
-                { value: 'RUC', label: 'RUC' },
-                { value: 'PASAPORTE', label: 'Pasaporte' },
+                { value: 'natural', label: 'Natural' },
+                { value: 'juridico', label: 'Jurídico' },
             ],
             placeholder: 'Todos',
         },
         {
-            name: 'con_saldo',
-            label: 'Con Saldo Pendiente',
+            name: 'tipo_documento',
+            label: 'Tipo Documento',
+            type: 'select',
+            options: [
+                { value: 'CC', label: 'CC' },
+                { value: 'NIT', label: 'NIT' },
+                { value: 'CE', label: 'CE' },
+                { value: 'Pasaporte', label: 'Pasaporte' },
+            ],
+            placeholder: 'Todos',
+        },
+        {
+            name: 'con_saldo_favor',
+            label: 'Con Saldo a Favor',
             type: 'select',
             options: [
                 { value: '1', label: 'Sí' },
-                { value: '0', label: 'No' },
             ],
             placeholder: 'Todos',
         },
@@ -208,8 +245,8 @@ export default function Index({ clientes, filters = {} }: Props) {
                 filters={filterDefinitions}
                 currentFilters={filters}
                 searchable
-                searchPlaceholder="Buscar por código, documento, razón social..."
-                searchFields={['código', 'documento', 'razón social', 'nombre comercial']}
+                searchPlaceholder="Buscar por documento, nombre, email..."
+                searchFields={['documento', 'nombre', 'email']}
                 routeName="catalogos.clientes.index"
                 emptyMessage="No se encontraron clientes"
             />

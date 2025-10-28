@@ -16,13 +16,12 @@ return new class extends Migration
             $table->string('codigo', 50)->unique();
             $table->string('nombre', 150);
             $table->text('descripcion')->nullable();
-            $table->string('tipo', 20)->comment('producto, servicio, ambos');
             $table->foreignId('categoria_padre_id')->nullable()->constrained('cat__categorias_items')->nullOnDelete();
-            $table->boolean('activa')->default(true);
+            $table->boolean('activo')->default(true);
             $table->timestamps();
             
-            $table->index('tipo');
-            $table->index('activa');
+            $table->index('activo');
+            $table->index('categoria_padre_id');
         });
     }
 

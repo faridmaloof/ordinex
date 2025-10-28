@@ -26,23 +26,27 @@ interface OrdenServicio {
 
 interface Cliente {
     id: number;
-    codigo: string;
+    erp_id: string | null;
+    tipo_cliente: 'natural' | 'juridico';
     tipo_documento: string;
     numero_documento: string;
-    razon_social: string;
-    nombre_comercial: string;
-    telefono: string;
-    email: string;
-    direccion: string;
-    ciudad: string;
-    departamento: string;
-    pais: string;
+    nombre: string;
+    telefono: string | null;
+    celular: string | null;
+    email: string | null;
+    direccion: string | null;
+    ciudad: string | null;
+    departamento: string | null;
+    vendedor_id: number | null;
+    vendedor?: {
+        id: number;
+        nombre: string;
+    };
     limite_credito: number;
-    dias_credito: number;
-    saldo_pendiente: number;
     saldo_favor: number;
+    sincronizado_erp: boolean;
     activo: boolean;
-    observaciones: string;
+    observaciones: string | null;
     solicitudes?: Solicitud[];
     ordenes_servicio?: OrdenServicio[];
 }
@@ -57,7 +61,7 @@ export default function Show({ cliente }: Props) {
     const handleDelete = () => {
         confirm({
             title: '¿Eliminar cliente?',
-            description: `¿Está seguro de eliminar "${cliente.razon_social}"? Esta acción no se puede deshacer.`,
+            description: `¿Está seguro de eliminar "${cliente.nombre}"? Esta acción no se puede deshacer.`,
             variant: 'destructive',
             confirmText: 'Eliminar',
             onConfirm: () => {
@@ -66,11 +70,9 @@ export default function Show({ cliente }: Props) {
         });
     };
 
-    const creditoDisponible = cliente.limite_credito - cliente.saldo_pendiente;
-
     return (
         <AppLayout>
-            <Head title={`Cliente: ${cliente.razon_social}`} />
+            <Head title={`Cliente: ${cliente.nombre}`} />
 
             <div className="space-y-6">
                 {/* Header */}
@@ -78,14 +80,22 @@ export default function Show({ cliente }: Props) {
                     <div>
                         <div className="flex items-center gap-3">
                             <h2 className="font-semibold text-2xl text-gray-900">
-                                {cliente.razon_social}
+                                {cliente.nombre}
                             </h2>
+                            <Badge variant={cliente.tipo_cliente === 'natural' ? 'default' : 'secondary'}>
+                                {cliente.tipo_cliente === 'natural' ? 'Natural' : 'Jurídico'}
+                            </Badge>
                             <Badge variant={cliente.activo ? 'default' : 'secondary'}>
                                 {cliente.activo ? 'Activo' : 'Inactivo'}
                             </Badge>
+                            {cliente.sincronizado_erp && cliente.erp_id && (
+                                <Badge variant="outline" className="text-blue-600">
+                                    ERP: {cliente.erp_id}
+                                </Badge>
+                            )}
                         </div>
                         <p className="text-sm text-gray-600 mt-1">
-                            Código: {cliente.codigo}
+                            {cliente.tipo_documento}: {cliente.numero_documento}
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -107,7 +117,6 @@ export default function Show({ cliente }: Props) {
                             <Button
                                 variant="destructive"
                                 onClick={handleDelete}
-                                disabled={cliente.saldo_pendiente > 0}
                             >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Eliminar
@@ -124,16 +133,35 @@ export default function Show({ cliente }: Props) {
                         </CardHeader>
                         <CardContent className="space-y-3">
                             <div>
+                                <span className="text-sm text-gray-500">Tipo:</span>
+                                <p className="font-medium">
+                                    {cliente.tipo_cliente === 'natural' ? 'Persona Natural' : 'Persona Jurídica'}
+                                </p>
+                            </div>
+
+                            <div>
                                 <span className="text-sm text-gray-500">Documento:</span>
                                 <p className="font-medium">
                                     {cliente.tipo_documento}: {cliente.numero_documento}
                                 </p>
                             </div>
 
-                            {cliente.nombre_comercial && (
+                            {cliente.erp_id && (
                                 <div>
-                                    <span className="text-sm text-gray-500">Nombre Comercial:</span>
-                                    <p className="font-medium">{cliente.nombre_comercial}</p>
+                                    <span className="text-sm text-gray-500">Código ERP:</span>
+                                    <p className="font-medium">
+                                        {cliente.erp_id}
+                                        {cliente.sincronizado_erp && (
+                                            <span className="ml-2 text-blue-600 text-sm">✓ Sincronizado</span>
+                                        )}
+                                    </p>
+                                </div>
+                            )}
+
+                            {cliente.vendedor && (
+                                <div>
+                                    <span className="text-sm text-gray-500">Vendedor Asignado:</span>
+                                    <p className="font-medium">{cliente.vendedor.nombre}</p>
                                 </div>
                             )}
 
@@ -166,6 +194,13 @@ export default function Show({ cliente }: Props) {
                                 </div>
                             )}
 
+                            {cliente.celular && (
+                                <div>
+                                    <span className="text-sm text-gray-500">Celular:</span>
+                                    <p className="font-medium">{cliente.celular}</p>
+                                </div>
+                            )}
+
                             {cliente.email && (
                                 <div>
                                     <span className="text-sm text-gray-500">Email:</span>
@@ -180,44 +215,28 @@ export default function Show({ cliente }: Props) {
                                 </div>
                             )}
 
-                            <div>
-                                <span className="text-sm text-gray-500">Ubicación:</span>
-                                <p className="font-medium">
-                                    {[cliente.ciudad, cliente.departamento, cliente.pais]
-                                        .filter(Boolean)
-                                        .join(', ')}
-                                </p>
-                            </div>
+                            {(cliente.ciudad || cliente.departamento) && (
+                                <div>
+                                    <span className="text-sm text-gray-500">Ubicación:</span>
+                                    <p className="font-medium">
+                                        {[cliente.ciudad, cliente.departamento]
+                                            .filter(Boolean)
+                                            .join(', ')}
+                                    </p>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
                     {/* Estado de Crédito */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Estado de Crédito</CardTitle>
+                            <CardTitle>Información Comercial</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
                             <div>
                                 <span className="text-sm text-gray-500">Límite de Crédito:</span>
                                 <MoneyDisplay amount={cliente.limite_credito} className="text-lg font-semibold" />
-                            </div>
-
-                            <div>
-                                <span className="text-sm text-gray-500">Saldo Pendiente:</span>
-                                <MoneyDisplay 
-                                    amount={cliente.saldo_pendiente} 
-                                    colorized={cliente.saldo_pendiente > 0}
-                                    className="text-lg font-semibold"
-                                />
-                            </div>
-
-                            <div>
-                                <span className="text-sm text-gray-500">Crédito Disponible:</span>
-                                <MoneyDisplay 
-                                    amount={creditoDisponible} 
-                                    colorized={creditoDisponible < 0}
-                                    className="text-lg font-semibold"
-                                />
                             </div>
 
                             {cliente.saldo_favor > 0 && (
@@ -230,10 +249,12 @@ export default function Show({ cliente }: Props) {
                                 </div>
                             )}
 
-                            <div>
-                                <span className="text-sm text-gray-500">Días de Crédito:</span>
-                                <p className="font-medium">{cliente.dias_credito} días</p>
-                            </div>
+                            {cliente.vendedor && (
+                                <div>
+                                    <span className="text-sm text-gray-500">Vendedor:</span>
+                                    <p className="font-medium">{cliente.vendedor.nombre}</p>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 

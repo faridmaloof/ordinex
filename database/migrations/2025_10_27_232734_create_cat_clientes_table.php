@@ -13,22 +13,31 @@ return new class extends Migration
     {
         Schema::create('cat__clientes', function (Blueprint $table) {
             $table->id();
-            $table->string('tipo_documento', 20)->default('CC');
-            $table->string('numero_documento', 50)->unique();
-            $table->string('nombre_completo', 200);
-            $table->string('razon_social', 200)->nullable();
-            $table->string('email', 150)->nullable();
-            $table->string('telefono', 50)->nullable();
-            $table->string('celular', 50)->nullable();
-            $table->string('direccion', 300)->nullable();
-            $table->decimal('saldo_favor', 12, 2)->default(0)->comment('Anticipos disponibles');
+            $table->string('erp_id', 50)->unique()->nullable()->comment('ID en SaiOpen ERP');
+            $table->string('tipo_cliente', 20)->default('natural')->comment('natural, juridico');
+            $table->string('tipo_documento', 20)->default('CC')->comment('CC, NIT, CE, Pasaporte');
+            $table->string('numero_documento', 20)->unique();
+            $table->string('nombre', 255)->comment('Nombre completo o razón social');
+            $table->string('telefono', 20)->nullable();
+            $table->string('celular', 20)->nullable();
+            $table->string('email', 100)->nullable();
+            $table->text('direccion')->nullable();
+            $table->string('ciudad', 100)->nullable();
+            $table->string('departamento', 100)->nullable();
+            $table->foreignId('vendedor_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->decimal('saldo_favor', 12, 2)->default(0)->comment('Saldo a favor (anticipos)');
+            $table->decimal('limite_credito', 12, 2)->default(0);
             $table->text('observaciones')->nullable();
+            $table->boolean('sincronizado_erp')->default(false);
             $table->boolean('activo')->default(true);
             $table->timestamps();
             
+            $table->index('tipo_cliente');
+            $table->index('tipo_documento');
             $table->index('numero_documento');
             $table->index('activo');
             $table->index('email');
+            $table->index('vendedor_id');
         });
     }
 
