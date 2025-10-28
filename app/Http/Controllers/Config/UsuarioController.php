@@ -17,28 +17,37 @@ class UsuarioController extends Controller
      */
     public function index(Request $request)
     {
-        $query = User::with('rol')->orderBy('name');
+        $query = User::with(['rol', 'cajaDefecto'])
+            ->orderBy('name');
 
+        // Búsqueda
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('documento', 'like', "%{$search}%");
             });
         }
 
+        // Filtro por rol
         if ($request->filled('rol_id')) {
             $query->where('rol_id', $request->rol_id);
         }
 
+        // Filtro por estado
         if ($request->filled('activo')) {
-            $query->where('activo', $request->activo === 'true');
+            $query->where('activo', $request->activo === '1');
         }
 
-        $usuarios = $query->paginate(15)->withQueryString();
-        $roles = Rol::activos()->orderBy('nombre')->get();
+        // Paginación dinámica
+        $perPage = $request->get('per_page', 10);
+        $usuarios = $query->paginate($perPage)->withQueryString();
+        
+        // Cargar roles para el filtro
+        $roles = Rol::activos()->orderBy('nombre')->get(['id', 'nombre', 'nivel', 'color']);
 
-        return Inertia::render('Config/Usuario/Index', [
+        return Inertia::render('Usuarios/Index', [
             'usuarios' => $usuarios,
             'roles' => $roles,
             'filters' => $request->only(['search', 'rol_id', 'activo']),
@@ -50,10 +59,14 @@ class UsuarioController extends Controller
      */
     public function create()
     {
-        $roles = Rol::activos()->orderBy('nombre')->get();
+        $roles = Rol::activos()->orderBy('nombre')->get(['id', 'nombre', 'nivel', 'color']);
+        $cajas = \App\Models\Transaccion\Caja::where('activo', true)
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'activo']);
 
-        return Inertia::render('Config/Usuario/Create', [
+        return Inertia::render('Usuarios/Create', [
             'roles' => $roles,
+            'cajas' => $cajas,
         ]);
     }
 
@@ -66,18 +79,31 @@ class UsuarioController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8|confirmed',
+            'documento' => 'nullable|string|max:50',
+            'telefono' => 'nullable|string|max:50',
             'rol_id' => 'required|exists:cnf__roles,id',
+            'caja_defecto_id' => 'nullable|exists:trn__cajas,id',
             'activo' => 'boolean',
+            'es_super_admin' => 'boolean',
         ]);
 
-        DB::transaction(function () use ($validated) {
+        DB::transaction(function () use ($validated, $request) {
+            // Solo super admin puede crear super admins
+            $esSuperAdmin = false;
+            if ($request->user()->esSuperAdmin() && ($validated['es_super_admin'] ?? false)) {
+                $esSuperAdmin = true;
+            }
+
             $usuario = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
+                'documento' => $validated['documento'] ?? null,
+                'telefono' => $validated['telefono'] ?? null,
                 'rol_id' => $validated['rol_id'],
+                'caja_defecto_id' => $validated['caja_defecto_id'] ?? null,
                 'activo' => $validated['activo'] ?? true,
-                'es_super_admin' => false,
+                'es_super_admin' => $esSuperAdmin,
             ]);
 
             // Registrar auditoría
@@ -92,7 +118,7 @@ class UsuarioController extends Controller
         });
 
         return redirect()
-            ->route('configuracion.usuarios.index')
+            ->route('config.usuarios.index')
             ->with('success', 'Usuario creado exitosamente');
     }
 
@@ -101,10 +127,13 @@ class UsuarioController extends Controller
      */
     public function show(User $usuario)
     {
-        $usuario->load('rol.permisos');
+        $usuario->load(['rol.permisos', 'cajaDefecto']);
+        
+        $permisosCount = $usuario->rol ? $usuario->rol->permisos->count() : 0;
 
-        return Inertia::render('Config/Usuario/Show', [
+        return Inertia::render('Usuarios/Show', [
             'usuario' => $usuario,
+            'permisos_count' => $permisosCount,
         ]);
     }
 
@@ -113,17 +142,17 @@ class UsuarioController extends Controller
      */
     public function edit(User $usuario)
     {
-        // No permitir editar super admins
-        if ($usuario->es_super_admin) {
-            return back()->with('error', 'No se pueden editar usuarios super administradores');
-        }
-
         $usuario->load('rol');
-        $roles = Rol::activos()->orderBy('nombre')->get();
+        
+        $roles = Rol::activos()->orderBy('nombre')->get(['id', 'nombre', 'nivel', 'color']);
+        $cajas = \App\Models\Transaccion\Caja::where('activo', true)
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'activo']);
 
-        return Inertia::render('Config/Usuario/Edit', [
+        return Inertia::render('Usuarios/Edit', [
             'usuario' => $usuario,
             'roles' => $roles,
+            'cajas' => $cajas,
         ]);
     }
 
@@ -132,27 +161,36 @@ class UsuarioController extends Controller
      */
     public function update(Request $request, User $usuario)
     {
-        // No permitir editar super admins
-        if ($usuario->es_super_admin) {
-            return back()->with('error', 'No se pueden editar usuarios super administradores');
-        }
-
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $usuario->id,
             'password' => 'nullable|string|min:8|confirmed',
+            'documento' => 'nullable|string|max:50',
+            'telefono' => 'nullable|string|max:50',
             'rol_id' => 'required|exists:cnf__roles,id',
+            'caja_defecto_id' => 'nullable|exists:trn__cajas,id',
             'activo' => 'boolean',
+            'es_super_admin' => 'boolean',
         ]);
 
-        DB::transaction(function () use ($usuario, $validated) {
+        DB::transaction(function () use ($usuario, $validated, $request) {
             $datosAnteriores = $usuario->toArray();
+
+            // Solo super admin puede modificar el flag es_super_admin
+            $esSuperAdmin = $usuario->es_super_admin;
+            if ($request->user()->esSuperAdmin()) {
+                $esSuperAdmin = $validated['es_super_admin'] ?? false;
+            }
 
             $datos = [
                 'name' => $validated['name'],
                 'email' => $validated['email'],
+                'documento' => $validated['documento'] ?? null,
+                'telefono' => $validated['telefono'] ?? null,
                 'rol_id' => $validated['rol_id'],
+                'caja_defecto_id' => $validated['caja_defecto_id'] ?? null,
                 'activo' => $validated['activo'] ?? true,
+                'es_super_admin' => $esSuperAdmin,
             ];
 
             // Solo actualizar contraseña si se proporcionó
@@ -174,7 +212,7 @@ class UsuarioController extends Controller
         });
 
         return redirect()
-            ->route('configuracion.usuarios.show', $usuario)
+            ->route('config.usuarios.index')
             ->with('success', 'Usuario actualizado exitosamente');
     }
 
@@ -211,7 +249,7 @@ class UsuarioController extends Controller
         });
 
         return redirect()
-            ->route('configuracion.usuarios.index')
+            ->route('config.usuarios.index')
             ->with('success', 'Usuario eliminado exitosamente');
     }
 

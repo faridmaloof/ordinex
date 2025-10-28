@@ -3,22 +3,21 @@
 namespace App\Http\Controllers\Catalogo;
 
 use App\Http\Controllers\Controller;
-use App\Models\Catalogo\Item;
+use App\Http\Requests\Catalogo\AjustarStockRequest;
+use App\Http\Requests\Catalogo\StoreItemRequest;
+use App\Http\Requests\Catalogo\UpdateItemRequest;
 use App\Models\Catalogo\CategoriaItem;
+use App\Models\Catalogo\Item;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class ItemController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
         $query = Item::with('categoria')->orderBy('nombre');
 
-        // Filtros
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -54,39 +53,17 @@ class ItemController extends Controller
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
         $categorias = CategoriaItem::orderBy('nombre')->get();
-
         return Inertia::render('Catalogo/Item/Create', [
             'categorias' => $categorias,
         ]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function store(StoreItemRequest $request)
     {
-        $validated = $request->validate([
-            'codigo' => 'required|string|max:50|unique:cat__items,codigo',
-            'nombre' => 'required|string|max:200',
-            'descripcion' => 'nullable|string|max:1000',
-            'categoria_id' => 'required|exists:cat__categorias_items,id',
-            'tipo' => 'required|in:producto,servicio,insumo',
-            'unidad_medida' => 'required|string|max:20',
-            'precio_venta' => 'required|numeric|min:0',
-            'precio_costo' => 'nullable|numeric|min:0',
-            'aplica_iva' => 'boolean',
-            'porcentaje_iva' => 'nullable|numeric|min:0|max:100',
-            'maneja_inventario' => 'boolean',
-            'stock_inicial' => 'nullable|numeric|min:0',
-            'stock_minimo' => 'nullable|numeric|min:0',
-            'activo' => 'boolean',
-        ]);
+        $validated = $request->validated();
 
         DB::transaction(function () use ($validated) {
             $item = Item::create([
@@ -118,57 +95,30 @@ class ItemController extends Controller
             );
         });
 
-        return redirect()
-            ->route('catalogo.items.index')
-            ->with('success', 'Item creado exitosamente');
+        return redirect()->route('items.index')->with('success', 'Item creado exitosamente');
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Item $item)
     {
         $item->load('categoria');
-
         return Inertia::render('Catalogo/Item/Show', [
             'item' => $item,
         ]);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Item $item)
     {
         $item->load('categoria');
         $categorias = CategoriaItem::orderBy('nombre')->get();
-
         return Inertia::render('Catalogo/Item/Edit', [
             'item' => $item,
             'categorias' => $categorias,
         ]);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, Item $item)
+    public function update(UpdateItemRequest $request, Item $item)
     {
-        $validated = $request->validate([
-            'codigo' => 'required|string|max:50|unique:cat__items,codigo,' . $item->id,
-            'nombre' => 'required|string|max:200',
-            'descripcion' => 'nullable|string|max:1000',
-            'categoria_id' => 'required|exists:cat__categorias_items,id',
-            'tipo' => 'required|in:producto,servicio,insumo',
-            'unidad_medida' => 'required|string|max:20',
-            'precio_venta' => 'required|numeric|min:0',
-            'precio_costo' => 'nullable|numeric|min:0',
-            'aplica_iva' => 'boolean',
-            'porcentaje_iva' => 'nullable|numeric|min:0|max:100',
-            'maneja_inventario' => 'boolean',
-            'stock_minimo' => 'nullable|numeric|min:0',
-            'activo' => 'boolean',
-        ]);
+        $validated = $request->validated();
 
         DB::transaction(function () use ($item, $validated) {
             $datosAnteriores = $item->toArray();
@@ -200,17 +150,11 @@ class ItemController extends Controller
             );
         });
 
-        return redirect()
-            ->route('catalogo.items.show', $item)
-            ->with('success', 'Item actualizado exitosamente');
+        return redirect()->route('items.show', $item)->with('success', 'Item actualizado exitosamente');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Item $item)
     {
-        // Verificar que no esté siendo usado en solicitudes o órdenes
         if ($item->solicitudItems()->exists() || $item->ordenItems()->exists()) {
             return back()->with('error', 'No se puede eliminar un item que está siendo usado en documentos');
         }
@@ -230,31 +174,21 @@ class ItemController extends Controller
             );
         });
 
-        return redirect()
-            ->route('catalogo.items.index')
-            ->with('success', 'Item eliminado exitosamente');
+        return redirect()->route('items.index')->with('success', 'Item eliminado exitosamente');
     }
 
-    /**
-     * Ajustar stock del item (entrada o salida)
-     */
-    public function ajustarStock(Request $request, Item $item)
+    public function ajustarStock(AjustarStockRequest $request, Item $item)
     {
-        $validated = $request->validate([
-            'tipo_movimiento' => 'required|in:entrada,salida,ajuste',
-            'cantidad' => 'required|numeric|min:0.01',
-            'motivo' => 'required|string|max:500',
-        ]);
-
         if (!$item->maneja_inventario) {
             return back()->with('error', 'Este item no maneja inventario');
         }
+
+        $validated = $request->validated();
 
         try {
             DB::transaction(function () use ($item, $validated) {
                 $stockAnterior = $item->stock_actual;
 
-                // Calcular nuevo stock
                 $nuevoStock = match ($validated['tipo_movimiento']) {
                     'entrada' => $stockAnterior + $validated['cantidad'],
                     'salida' => $stockAnterior - $validated['cantidad'],

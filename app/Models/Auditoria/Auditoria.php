@@ -51,17 +51,24 @@ class Auditoria extends Model
     /**
      * Helper para registrar auditoría
      */
-    public static function registrar(string $accion, string $tipo_entidad, string $tabla, ?int $entidad_id = null, ?array $datos_anteriores = null, ?array $datos_nuevos = null): void
+    public static function registrar(
+        string $accion, 
+        string $modulo, 
+        string $tabla, 
+        ?int $registro_id = null, 
+        ?array $datos_anteriores = null, 
+        ?array $datos_nuevos = null
+    ): void
     {
         /** @var \App\Models\User|null $user */
         $user = Auth::user();
         
         self::create([
-            'accion' => $accion,
-            'tipo_entidad' => $tipo_entidad,
-            'tabla' => $tabla,
-            'entidad_id' => $entidad_id,
             'usuario_id' => $user?->id,
+            'accion' => $accion,
+            'modulo' => $modulo,
+            'tabla' => $tabla,
+            'registro_id' => $registro_id,
             'datos_anteriores' => $datos_anteriores,
             'datos_nuevos' => $datos_nuevos,
             'ip' => request()->ip(),

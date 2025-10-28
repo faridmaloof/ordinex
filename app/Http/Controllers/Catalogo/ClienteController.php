@@ -15,22 +15,43 @@ class ClienteController extends Controller
      */
     public function index(Request $request): Response
     {
-        $query = Cliente::query()->with(['solicitudes', 'ordenesServicio']);
+        $query = Cliente::query();
+
+        // Búsqueda
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('codigo', 'like', "%{$search}%")
+                  ->orWhere('numero_documento', 'like', "%{$search}%")
+                  ->orWhere('razon_social', 'like', "%{$search}%")
+                  ->orWhere('nombre_comercial', 'like', "%{$search}%");
+            });
+        }
 
         // Filtros
-        if ($request->filled('buscar')) {
-            $query->buscar($request->buscar);
-        }
-
         if ($request->filled('activo')) {
-            $query->where('activo', $request->boolean('activo'));
+            $query->where('activo', $request->activo === '1');
         }
 
-        $clientes = $query->orderBy('razon_social')->paginate(15)->withQueryString();
+        if ($request->filled('tipo_documento')) {
+            $query->where('tipo_documento', $request->tipo_documento);
+        }
 
-        return Inertia::render('Catalogo/Cliente/Index', [
+        if ($request->filled('con_saldo')) {
+            if ($request->con_saldo === '1') {
+                $query->where('saldo_pendiente', '>', 0);
+            } else {
+                $query->where('saldo_pendiente', '=', 0);
+            }
+        }
+
+        // Paginación dinámica
+        $perPage = $request->get('per_page', 10);
+        $clientes = $query->orderBy('razon_social')->paginate($perPage)->withQueryString();
+
+        return Inertia::render('Clientes/Index', [
             'clientes' => $clientes,
-            'filtros' => $request->only(['buscar', 'activo']),
+            'filters' => $request->only(['search', 'activo', 'tipo_documento', 'con_saldo', 'per_page']),
         ]);
     }
 
@@ -39,7 +60,7 @@ class ClienteController extends Controller
      */
     public function create(): Response
     {
-        return Inertia::render('Catalogo/Cliente/Create');
+        return Inertia::render('Clientes/Create');
     }
 
     /**
@@ -70,7 +91,7 @@ class ClienteController extends Controller
 
         Cliente::create($validated);
 
-        return redirect()->route('catalogo.clientes.index')
+        return redirect()->route('catalogos.clientes.index')
             ->with('success', 'Cliente creado exitosamente');
     }
 
@@ -79,9 +100,13 @@ class ClienteController extends Controller
      */
     public function show(Cliente $cliente): Response
     {
-        $cliente->load(['solicitudes', 'ordenesServicio', 'pagos']);
+        $cliente->load(['solicitudes' => function ($query) {
+            $query->latest()->limit(5);
+        }, 'ordenesServicio' => function ($query) {
+            $query->latest()->limit(5);
+        }]);
 
-        return Inertia::render('Catalogo/Cliente/Show', [
+        return Inertia::render('Clientes/Show', [
             'cliente' => $cliente,
         ]);
     }
@@ -91,7 +116,7 @@ class ClienteController extends Controller
      */
     public function edit(Cliente $cliente): Response
     {
-        return Inertia::render('Catalogo/Cliente/Edit', [
+        return Inertia::render('Clientes/Edit', [
             'cliente' => $cliente,
         ]);
     }
@@ -121,7 +146,7 @@ class ClienteController extends Controller
 
         $cliente->update($validated);
 
-        return redirect()->route('catalogo.clientes.show', $cliente)
+        return redirect()->route('catalogos.clientes.show', $cliente)
             ->with('success', 'Cliente actualizado exitosamente');
     }
 
@@ -137,7 +162,7 @@ class ClienteController extends Controller
 
         $cliente->delete();
 
-        return redirect()->route('catalogo.clientes.index')
+        return redirect()->route('catalogos.clientes.index')
             ->with('success', 'Cliente eliminado exitosamente');
     }
 }

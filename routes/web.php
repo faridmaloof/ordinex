@@ -109,7 +109,42 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('caja/movimiento', [CajaTransaccionController::class, 'movimiento'])->name('caja.movimiento');
         Route::get('caja/historial', [CajaTransaccionController::class, 'historial'])->name('caja.historial');
     });
+    
+    // ========================================
+    // API ENDPOINTS (Para selectores dinámicos)
+    // ========================================
+    Route::prefix('api')->name('api.')->group(function () {
+        
+        // Roles (para selector en usuarios)
+        Route::get('roles', function () {
+            return \App\Models\Config\Rol::where('activo', true)
+                ->orderBy('nombre')
+                ->get(['id', 'nombre', 'nivel', 'color']);
+        })->name('roles.list');
+        
+        // Cajas (para selector en usuarios y otras vistas)
+        Route::get('cajas', function () {
+            return \App\Models\Transaccion\Caja::where('activo', true)
+                ->orderBy('nombre')
+                ->get(['id', 'nombre', 'activo']);
+        })->name('cajas.list');
+        
+        // Clientes (para selectores)
+        Route::get('clientes', function () {
+            return \App\Models\Catalogo\Cliente::where('activo', true)
+                ->orderBy('razon_social')
+                ->get(['id', 'codigo', 'razon_social', 'nombre_comercial']);
+        })->name('clientes.list');
+        
+        // Items (para selectores)
+        Route::get('items', function () {
+            return \App\Models\Catalogo\Item::where('activo', true)
+                ->orderBy('nombre')
+                ->get(['id', 'codigo', 'nombre', 'precio', 'tipo']);
+        })->name('items.list');
+    });
 });
 
 require __DIR__.'/settings.php';
+
 

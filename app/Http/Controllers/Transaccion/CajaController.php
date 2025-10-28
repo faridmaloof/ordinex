@@ -3,10 +3,14 @@
 namespace App\Http\Controllers\Transaccion;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Transaccion\AbrirCajaRequest;
+use App\Http\Requests\Transaccion\CerrarCajaRequest;
+use App\Http\Requests\Transaccion\RegistrarMovimientoRequest;
 use App\Models\Config\Caja;
 use App\Models\Transaccion\CajaTransaccion;
 use App\Services\CajaService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class CajaController extends Controller
@@ -16,200 +20,106 @@ class CajaController extends Controller
     ) {}
 
     /**
-     * Mostrar caja abierta del usuario actual
+     * Muestra el dashboard principal de cajas.
+     */
+    public function index()
+    {
+        $cajasConfig = Caja::with(['cajaAbierta.usuarioCajero'])->get();
+        return Inertia::render('Transaccion/Caja/Index', [
+            'cajasConfig' => $cajasConfig,
+        ]);
+    }
+
+    /**
+     * Muestra la caja abierta del usuario o el dashboard si no tiene una.
      */
     public function actual()
     {
-        /** @var \App\Models\User $user */
-        $user = auth()->user();
-
-        $cajaAbierta = $this->cajaService->getCajaAbierta($user->id);
+        $cajaAbierta = $this->cajaService->getCajaAbierta(Auth::id());
 
         if (!$cajaAbierta) {
-            return Inertia::render('Transaccion/Caja/SinCaja');
+            return redirect()->route('caja.index')->with('info', 'No tienes una caja abierta. Por favor, abre una para continuar.');
         }
 
         $resumen = $this->cajaService->getResumenCaja($cajaAbierta->id);
 
-        return Inertia::render('Transaccion/Caja/Actual', [
-            'cajaTransaccion' => $cajaAbierta,
+        return Inertia::render('Transaccion/Caja/Show', [
+            'cajaTransaccion' => $cajaAbierta->load(['caja', 'usuarioCajero']),
             'resumen' => $resumen,
         ]);
     }
 
-    /**
-     * Formulario para abrir caja
-     */
     public function abrirForm()
     {
-        /** @var \App\Models\User $user */
-        $user = auth()->user();
-
-        // Verificar si ya tiene caja abierta
-        if ($this->cajaService->tieneCajaAbierta($user->id)) {
-            return redirect()
-                ->route('transacciones.caja.actual')
-                ->with('error', 'Ya tienes una caja abierta');
+        if ($this->cajaService->tieneCajaAbierta(Auth::id())) {
+            return redirect()->route('caja.actual')->with('error', 'Ya tienes una caja abierta');
         }
-
         $cajas = Caja::activas()->orderBy('nombre')->get();
-
-        return Inertia::render('Transaccion/Caja/Abrir', [
-            'cajas' => $cajas,
-        ]);
+        return Inertia::render('Transaccion/Caja/Abrir', ['cajas' => $cajas]);
     }
 
-    /**
-     * Abrir caja
-     */
-    public function abrir(Request $request)
+    public function abrir(AbrirCajaRequest $request)
     {
-        $validated = $request->validate([
-            'caja_id' => 'required|exists:cnf__cajas,id',
-            'monto_inicial' => 'required|numeric|min:0',
-            'observaciones' => 'nullable|string|max:500',
-        ]);
-
         try {
-            /** @var \App\Models\User $user */
-            $user = auth()->user();
-
-            $cajaTransaccion = $this->cajaService->abrir(
-                $validated['caja_id'],
-                $user->id,
-                $validated['monto_inicial'],
-                $validated['observaciones'] ?? null
+            $this->cajaService->abrir(
+                $request->validated()['caja_id'],
+                Auth::id(),
+                $request->validated()['monto_inicial'],
+                $request->validated()['observaciones'] ?? null
             );
-
-            return redirect()
-                ->route('transacciones.caja.actual')
-                ->with('success', 'Caja abierta exitosamente');
+            return redirect()->route('caja.actual')->with('success', 'Caja abierta exitosamente');
         } catch (\Exception $e) {
-            return back()
-                ->withInput()
-                ->with('error', $e->getMessage());
+            return back()->withInput()->with('error', $e->getMessage());
         }
     }
 
-    /**
-     * Formulario para cerrar caja
-     */
-    public function cerrarForm()
+    public function cerrarForm(CajaTransaccion $cajaTransaccion)
     {
-        /** @var \App\Models\User $user */
-        $user = auth()->user();
-
-        $cajaAbierta = $this->cajaService->getCajaAbierta($user->id);
-
-        if (!$cajaAbierta) {
-            return redirect()
-                ->route('transacciones.caja.abrir-form')
-                ->with('error', 'No tienes una caja abierta');
-        }
-
-        $resumen = $this->cajaService->getResumenCaja($cajaAbierta->id);
-
+        $resumen = $this->cajaService->getResumenCaja($cajaTransaccion->id);
         return Inertia::render('Transaccion/Caja/Cerrar', [
-            'cajaTransaccion' => $cajaAbierta,
+            'cajaTransaccion' => $cajaTransaccion,
             'resumen' => $resumen,
         ]);
     }
 
-    /**
-     * Cerrar caja
-     */
-    public function cerrar(Request $request)
+    public function cerrar(CerrarCajaRequest $request)
     {
-        $validated = $request->validate([
-            'caja_transaccion_id' => 'required|exists:trx__cajas_transacciones,id',
-            'monto_final_real' => 'required|numeric|min:0',
-            'supervisor_id' => 'nullable|exists:users,id',
-            'clave_diaria' => 'nullable|string|max:50',
-            'justificacion' => 'nullable|string|max:500',
-            'observaciones' => 'nullable|string|max:500',
-        ]);
-
         try {
-            $cajaTransaccion = $this->cajaService->cerrar(
-                $validated['caja_transaccion_id'],
-                $validated['monto_final_real'],
-                $validated['supervisor_id'] ?? null,
-                $validated['clave_diaria'] ?? null,
-                $validated['justificacion'] ?? null,
-                $validated['observaciones'] ?? null
+            $this->cajaService->cerrar(
+                $request->validated()['caja_transaccion_id'],
+                $request->validated()['monto_final_real'],
+                $request->validated()['supervisor_id'] ?? null,
+                $request->validated()['clave_diaria'] ?? null,
+                $request->validated()['justificacion'] ?? null,
+                $request->validated()['observaciones'] ?? null
             );
-
-            return redirect()
-                ->route('transacciones.caja.historial')
-                ->with('success', 'Caja cerrada exitosamente');
+            return redirect()->route('caja.historial')->with('success', 'Caja cerrada exitosamente');
         } catch (\Exception $e) {
-            return back()
-                ->withInput()
-                ->with('error', $e->getMessage());
+            return back()->withInput()->with('error', $e->getMessage());
         }
     }
 
-    /**
-     * Registrar movimiento de caja
-     */
-    public function movimiento(Request $request)
+    public function movimiento(RegistrarMovimientoRequest $request, CajaTransaccion $cajaTransaccion)
     {
-        $validated = $request->validate([
-            'tipo' => 'required|in:ingreso,egreso',
-            'monto' => 'required|numeric|min:0.01',
-            'concepto' => 'required|string|max:200',
-            'referencia' => 'nullable|string|max:100',
-        ]);
-
         try {
-            /** @var \App\Models\User $user */
-            $user = auth()->user();
-
-            $cajaAbierta = $this->cajaService->getCajaAbierta($user->id);
-
-            if (!$cajaAbierta) {
-                return back()->with('error', 'No tienes una caja abierta');
-            }
-
             $this->cajaService->registrarMovimiento(
-                $cajaAbierta->id,
-                $validated['tipo'],
-                $validated['monto'],
-                $validated['concepto'],
-                $validated['referencia'] ?? null,
-                $user->id
+                $cajaTransaccion->id,
+                $request->validated()['tipo'],
+                $request->validated()['monto'],
+                $request->validated()['concepto'],
+                $request->validated()['referencia'] ?? null,
+                Auth::id()
             );
-
             return back()->with('success', 'Movimiento registrado exitosamente');
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
         }
     }
 
-    /**
-     * Historial de cajas
-     */
     public function historial(Request $request)
     {
-        $query = CajaTransaccion::with(['caja', 'usuario'])
-            ->orderBy('fecha_apertura', 'desc');
-
-        if ($request->filled('caja_id')) {
-            $query->where('caja_id', $request->caja_id);
-        }
-
-        if ($request->filled('estado')) {
-            $query->where('estado', $request->estado);
-        }
-
-        if ($request->filled('fecha_desde')) {
-            $query->whereDate('fecha_apertura', '>=', $request->fecha_desde);
-        }
-
-        if ($request->filled('fecha_hasta')) {
-            $query->whereDate('fecha_apertura', '<=', $request->fecha_hasta);
-        }
-
+        $query = CajaTransaccion::with(['caja', 'usuarioCajero'])->latest('fecha_apertura');
+        // ... filters ...
         $transacciones = $query->paginate(15)->withQueryString();
         $cajas = Caja::orderBy('nombre')->get();
 
