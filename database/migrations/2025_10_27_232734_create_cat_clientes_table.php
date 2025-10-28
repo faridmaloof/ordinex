@@ -21,8 +21,6 @@ return new class extends Migration
             $table->string('telefono', 50)->nullable();
             $table->string('celular', 50)->nullable();
             $table->string('direccion', 300)->nullable();
-            $table->string('ciudad', 100)->nullable();
-            $table->string('departamento', 100)->nullable();
             $table->decimal('saldo_favor', 12, 2)->default(0)->comment('Anticipos disponibles');
             $table->text('observaciones')->nullable();
             $table->boolean('activo')->default(true);
