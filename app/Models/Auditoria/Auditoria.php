@@ -4,6 +4,7 @@ namespace App\Models\Auditoria;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 
 class Auditoria extends Model
@@ -53,7 +54,7 @@ class Auditoria extends Model
     public static function registrar(string $accion, string $tipo_entidad, string $tabla, ?int $entidad_id = null, ?array $datos_anteriores = null, ?array $datos_nuevos = null): void
     {
         /** @var \App\Models\User|null $user */
-        $user = auth()->user();
+        $user = Auth::user();
         
         self::create([
             'accion' => $accion,

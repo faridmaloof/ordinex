@@ -142,7 +142,7 @@ export default function DataTable<T = any>({
                                 }
 
                                 return (
-                                    <Link key={index} href={link.url} preserveState>
+                                    <Link key={index} href={link.url!} preserveState>
                                         <Button
                                             variant={link.active ? 'default' : 'outline'}
                                             size="sm"
@@ -157,7 +157,7 @@ export default function DataTable<T = any>({
                         {/* Botón Siguiente */}
                         {pagination.links[pagination.links.length - 1]?.url ? (
                             <Link
-                                href={pagination.links[pagination.links.length - 1].url}
+                                href={pagination.links[pagination.links.length - 1].url!}
                                 preserveState
                             >
                                 <Button variant="outline" size="sm">

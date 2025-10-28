@@ -4,11 +4,12 @@ namespace App\Models\Auditoria;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 
 class ModificacionAutorizada extends Model
 {
-    protected $table = 'aud__modificaciones_autorizadas';
+    protected $table = 'aud_modificaciones_autorizadas';
 
     protected $fillable = [
         'tabla',
@@ -60,7 +61,7 @@ class ModificacionAutorizada extends Model
         string $justificacion
     ): self {
         /** @var \App\Models\User|null $user */
-        $user = auth()->user();
+        $user = Auth::user();
         
         return self::create([
             'tabla' => $tabla,

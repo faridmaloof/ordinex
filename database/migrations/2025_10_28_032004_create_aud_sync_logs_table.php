@@ -13,6 +13,14 @@ return new class extends Migration
     {
         Schema::create('aud_sync_logs', function (Blueprint $table) {
             $table->id();
+            $table->enum('tipo', ['clientes', 'items', 'ambos']);
+            $table->dateTime('fecha_sync');
+            $table->integer('registros_nuevos')->default(0);
+            $table->integer('registros_actualizados')->default(0);
+            $table->integer('errores')->default(0);
+            $table->text('detalle_errores')->nullable();
+            $table->foreignId('usuario_ejecuta_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->enum('tipo_ejecucion', ['automatica', 'manual'])->default('automatica');
             $table->timestamps();
         });
     }
